@@ -1,0 +1,42 @@
+{
+    "PersonalSettings": {
+        "MailFrom": "username@example.com",
+        "Directories": {
+            "MainStoreDirectory": {
+                "path": "/home/user/path/to/store/directory",
+                "name": "FolderName"
+            },
+            "StoreDirectories": {
+                ".pdf": "Pdf",
+                ".doc": "Doc",
+                ".*": "Other"
+            }
+        },
+        "Notifications" : {
+            "NewFile": "Nowy plik:",
+            "NoAttach": "Mail bez załączników, lepiej sprawdź sama.",
+            "ErrorDownload" : "Błąd pobrania, sprawdź samodzielnie",
+            "Checked" : "Poczta sprawdzona."
+        },
+        "Labels": {
+            "LabelSuccDownload": {
+                "name": "Pobrane",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+                "id": ""
+            },
+            "LabelNoAttach": {
+                "name": "B\u0142\u0105d pobrania",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+                "id": ""
+            },
+            "LabelErrorDownload": {
+                "name": "Brak za\u0142\u0105cznik\u00f3w",
+                "labelListVisibility": "labelHide",
+                "messageListVisibility": "hide",
+                "id": ""
+            }
+        }
+    }
+}
