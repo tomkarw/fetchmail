@@ -1,0 +1,42 @@
+{
+    "PersonalSettings": {
+        "MailFrom": "username@example.com",
+        "Directories": {
+            "MainStoreDirectory": {
+                "path": "/home/user/path/to/store/directory",
+                "name": "FolderName"
+            },
+            "StoreDirectories": {
+                ".pdf": "Pdf",
+                ".doc": "Doc",
+                ".*": "Other"
+            }
+        },
+        "Notifications" : {
+            "NewFile": "New file:",
+            "NoAttach": "No attachments, best to check by hand.",
+            "ErrorDownload" : "Error occured while downloading, check by hand.",
+            "Checked" : "Mail checked."
+        },
+        "Labels": {
+            "LabelSuccDownload": {
+                "name": "Downloaded",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+                "id": ""
+            },
+            "LabelNoAttach": {
+                "name": "Error downloading",
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+                "id": ""
+            },
+            "LabelErrorDownload": {
+                "name": "No attachments",
+                "labelListVisibility": "labelHide",
+                "messageListVisibility": "hide",
+                "id": ""
+            }
+        }
+    }
+}
