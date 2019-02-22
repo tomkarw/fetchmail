@@ -13,26 +13,26 @@
             }
         },
         "Notifications" : {
-            "NewFile": "Nowy plik:",
-            "NoAttach": "Mail bez załączników, lepiej sprawdź sama.",
-            "ErrorDownload" : "Błąd pobrania, sprawdź samodzielnie",
-            "Checked" : "Poczta sprawdzona."
+            "NewFile": "New file:",
+            "NoAttach": "No attachments, best to check by hand.",
+            "ErrorDownload" : "Error occured while downloading, check by hand.",
+            "Checked" : "Mail checked."
         },
         "Labels": {
             "LabelSuccDownload": {
-                "name": "Pobrane",
+                "name": "Downloaded",
                 "labelListVisibility": "labelShow",
                 "messageListVisibility": "show",
                 "id": ""
             },
             "LabelNoAttach": {
-                "name": "B\u0142\u0105d pobrania",
+                "name": "Error downloading",
                 "labelListVisibility": "labelShow",
                 "messageListVisibility": "show",
                 "id": ""
             },
             "LabelErrorDownload": {
-                "name": "Brak za\u0142\u0105cznik\u00f3w",
+                "name": "No attachments",
                 "labelListVisibility": "labelHide",
                 "messageListVisibility": "hide",
                 "id": ""

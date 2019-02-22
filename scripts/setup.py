@@ -13,7 +13,7 @@ import subprocess
 
 SCOPES = 'https://www.googleapis.com/auth/gmail.modify'
 
-PATH = os.path.dirname(os.path.realpath(__file__))
+PATH = os.path.dirname(os.path.realpath(__file__))+'/..'
 
 
 def GetGmailServiceObject():
@@ -25,10 +25,10 @@ def GetGmailServiceObject():
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    store = file.Storage(PATH+'/token.json')
+    store = file.Storage(PATH+'/credentials/token.json')
     creds = store.get()
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets(PATH+'/credentials.json', SCOPES)
+        flow = client.flow_from_clientsecrets(PATH+'credentials/credentials.json', SCOPES)
         creds = tools.run_flow(flow, store)
         
     return build('gmail', 'v1', http=creds.authorize(Http()))
@@ -46,6 +46,7 @@ def CreateLabel(service, user_id, label_object):
         Created Label.
     """
     try:
+        del label_object["id"]
         label = service.users().labels().create(userId=user_id,
                                             body=label_object).execute()
         return label
@@ -108,6 +109,7 @@ def CreateIfNewLabel(service, user_id, label_object):
         Gmail Label Object - either already existing one or newly created
     """
     
+    
     for existing_label in ListLabels(service,user_id):
         if  existing_label["name"] == label_object["name"]:
             if  existing_label["labelListVisibility"] == label_object["labelListVisibility"] and \
@@ -116,6 +118,7 @@ def CreateIfNewLabel(service, user_id, label_object):
             else:
                 DeleteLabel(service, user_id, existing_label["id"])
                 return CreateLabel(service,'me',label_object)
+    return CreateLabel(service,'me',label_object)
     
 def CreateNeededLabels(service,user_id, needed_labels):
     """Creates all needed labels and return them
@@ -128,8 +131,9 @@ def CreateNeededLabels(service,user_id, needed_labels):
     
     for label_object in needed_labels:
         label = CreateIfNewLabel(service,user_id,label_object)
-        created_labels += [label]
-            
+        if label:
+            created_labels += [label]
+    
     return created_labels
 
 def loadSettingsFromJSON(json_path):
@@ -161,44 +165,49 @@ def main():
     
     print('Running fetchattach_setup.py')
     
-    settings_dict = loadSettingsFromJSON(PATH + '/settings.json')
-    
-    # dir_path - path to where the directory for storing files should be created
-    # dir_name - what the directory should be named
-    # mail_from - whose mails should be checked 
-    dir_path = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["path"]
-    dir_name = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["name"]
-    mail_from = settings_dict["PersonalSettings"]["MailFrom"]
-    
-    main_dir = dir_path + '/' + dir_name
-    
-    try:
-        os.mkdir(main_dir)
-    except FileExistsError as error:
-        print('Directory already exists:',main_dir)
-    
-    for file_dir in settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"]:
-        dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][file_dir]
-        dir_path = main_dir + '/' + dir_name
-        try:
-            os.mkdir(dir_path)
-        except FileExistsError as error:
-            print('Directory already exists:',dir_path)
-
-    # add main script as a cron job to be run every minute
-    croncmd = PATH + "/fetchattach.py"
-    cronjob = f'*/1 * * * * {croncmd} >> {PATH+"/fetchcron.log"} 2>&1'
-    display_bit = 'eval "export $(egrep -z DBUS_SESSION_BUS_ADDRESS /proc/$(pgrep -u $LOGNAME gnome-session)/environ)";'
-    subprocess.run(f'{display_bit} crontab -l | ( grep -v -F "{croncmd}" ; echo "{cronjob}" ) | crontab -',shell=True)
-    
     gmail = GetGmailServiceObject()
-
-    settings_labels = [settings_dict["PersonalSettings"]["Labels"][key] for key in settings_dict["PersonalSettings"]["Labels"]]
     
-    labels = CreateNeededLabels(gmail,'me',settings_labels) 
-    
-    SetLabelIdInFile(PATH + '/settings.json', settings_dict, labels)
+    for settings_file in os.listdir(PATH + '/settings'):
+        settings_dict = loadSettingsFromJSON(PATH + '/settings/' + settings_file)
+        
+        # dir_path - path to where the directory for storing files should be created
+        # dir_name - what the directory should be named
+        # mail_from - whose mails should be checked 
+        dir_path = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["path"]
+        dir_name = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["name"]
+        mail_from = settings_dict["PersonalSettings"]["MailFrom"]
+        
+        main_dir = dir_path + '/' + dir_name
+        
+        try:
+            os.mkdir(main_dir)
+        except FileExistsError as error:
+            print('Directory already exists:',main_dir)
+        
+        for file_dir in settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"]:
+            dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][file_dir]
+            dir_path = main_dir + '/' + dir_name
+            try:
+                os.mkdir(dir_path)
+            except FileExistsError as error:
+                print('Directory already exists:',dir_path)
 
+        settings_labels = [settings_dict["PersonalSettings"]["Labels"][key] for key in settings_dict["PersonalSettings"]["Labels"]]
+        
+        labels = CreateNeededLabels(gmail,'me',settings_labels) 
+        
+        SetLabelIdInFile(PATH + '/settings/' + settings_file, settings_dict, labels)
+
+    
+    # add main script as a cron job to be run every minute
+    croncmd = PATH + "scripts/fetchattach.py"
+    cronjob = f'*/1 * * * * {croncmd} >> {PATH+"/fetchcron.log"} 2>&1'
+    subprocess.run(f'crontab -l | ( grep -v -F "{croncmd}" ; echo "{cronjob}" ) | crontab -',shell=True)
+    
+    croncmd = PATH + "scripts/setup.py"
+    cronjob = f'* 20 * * * {croncmd} >> {PATH+"/fetchcron.log"} 2>&1'
+    subprocess.run(f'crontab -l | ( grep -v -F "{croncmd}" ; echo "{cronjob}" ) | crontab -',shell=True)
+    
     print('Setup succesful.')
     
 if __name__=="__main__":

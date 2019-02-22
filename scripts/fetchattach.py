@@ -13,7 +13,6 @@ from apiclient import errors
 import base64 # decoding message body data
 
 # my additional imports
-import sys # sys.arg
 import re # for extracting urls from message body
 import urllib.request # for downloading files from urls
 import json # for loading JSON file with settings
@@ -25,12 +24,13 @@ import gi # for sending notifications
 from gi.repository import GObject
 gi.require_version('Notify', '0.7')
 from gi.repository import Notify
+import os # os.listdir
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = 'https://www.googleapis.com/auth/gmail.modify'
 
 # getting path to all needed files
-PATH = os.path.dirname(os.path.realpath(__file__))
+PATH = os.path.dirname(os.path.realpath(__file__))+'/..'
 
 # setting display info for notifications
 os.environ['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=/run/user/1000/bus'
@@ -47,10 +47,10 @@ def GetGmailServiceObject():
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    store = file.Storage(PATH+'/token.json')
+    store = file.Storage(PATH+'/credentials/token.json')
     creds = store.get()
     if not creds or creds.invalid:
-        flow = client.flow_from_clientsecrets(PATH+'/credentials.json', SCOPES)
+        flow = client.flow_from_clientsecrets(PATH+'/credentials/credentials.json', SCOPES)
         creds = tools.run_flow(flow, store)
     return build('gmail', 'v1', http=creds.authorize(Http()))
 
@@ -106,7 +106,6 @@ def GetMessage(service, user_id, msg_id, chosen_format):
   except errors.HttpError as error:
     print('An error occurred: %s' % error)
 
-
 def GetAttachments(service, user_id, msg_id, prefix=""):
     """Get and store attachment from Message with given id.
 
@@ -149,10 +148,15 @@ def loadSettingsFromJSON(json_path):
     
     return json_dict
 
-def DownloadMails(settings_dict, download_all=False):
+def saveSettingsToJSON(json_dict,json_path):
+    
+    with open(json_path,'w') as fh:
+        json.dump(json_dict, fh, indent=4)
+
+def DownloadMails(gmail, settings_dict, download_all=False, set_labels=True):
     
     # build Gmail API object
-    gmail = GetGmailServiceObject()
+    
     
     # set adress from which mails are to be downloaded
     from_user = settings_dict["PersonalSettings"]["MailFrom"]
@@ -176,23 +180,28 @@ def DownloadMails(settings_dict, download_all=False):
             except KeyError:
                 path = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["path"]
                 main_dir_name = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["name"]
-                pdf_dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][".pdf"]
+                pdf_dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"]["pdf"]
                 save_to_path =  f"{path}/{main_dir_name}/{pdf_dir_name}/"
                 
                 filename = GetAttachments(gmail,'me',msg_id,save_to_path)
                 
-                text = settings_dict["PersonalSettings"]["Notifications"]["NewMail"]
-                Notify.Notification.new("fetch-attach", f'{text}\n"{filename}"').show()
+                if set_labels:
+                    succ_label_id = settings_dict["PersonalSettings"]["Labels"]["LabelSuccDownload"]["id"]
+                    SetLabel(gmail,'me',msg_id,succ_label_id)
+                
+                text = settings_dict["PersonalSettings"]["Notifications"]["NewFile"]
+                Notify.Notification.new("fetch-attach", f'{text}\n"{filename}"', PATH+'/graphics/Gmail_Icon.png').show()
         
         linksNames = linkNameRegex.findall(message_body_data)
         
         if not linksNames:
             noattach_label_id = settings_dict["PersonalSettings"]["Labels"]["LabelNoAttach"]["id"]
             
-            SetLabel(gmail,'me',msg_id,noattach_label_id)
+            if set_labels:
+                SetLabel(gmail,'me',msg_id,noattach_label_id)
             
             text = settings_dict["PersonalSettings"]["Notifications"]["NoAttach"]
-            Notify.Notification.new("fetch-attach", text).show()
+            Notify.Notification.new("fetch-attach", text, PATH+'/graphics/Gmail_Icon.png').show()
         
         for url,filename in linksNames:
             
@@ -200,11 +209,13 @@ def DownloadMails(settings_dict, download_all=False):
             path = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["path"]
             main_dir_name = settings_dict["PersonalSettings"]["Directories"]["MainStoreDirectory"]["name"]
             
-            if ".pdf" in filename:
-                pdf_dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][".pdf"]
-                save_to_filename =  f"{path}/{main_dir_name}/{pdf_dir_name}/{filename}"
+            ext = filename.split('.')[-1]
+            
+            if ext in settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"]:
+                dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][ext]
+                save_to_filename =  f"{path}/{main_dir_name}/{dir_name}/{filename}"
             else:
-                other_dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"][".*"]
+                other_dir_name = settings_dict["PersonalSettings"]["Directories"]["StoreDirectories"]["*"]
                 save_to_filename =  f"{path}/{main_dir_name}/{other_dir_name}/{filename}"
             
             try:
@@ -212,32 +223,45 @@ def DownloadMails(settings_dict, download_all=False):
                 urllib.request.urlretrieve(url, save_to_filename)
                 
                 # set a label signifying that the file has been downloaded
-                succ_label_id = settings_dict["PersonalSettings"]["Labels"]["LabelSuccDownload"]["id"]
-                SetLabel(gmail,'me',msg_id,succ_label_id)
+                if set_labels:
+                    succ_label_id = settings_dict["PersonalSettings"]["Labels"]["LabelSuccDownload"]["id"]
+                    SetLabel(gmail,'me',msg_id,succ_label_id)
                 
                 # notify about new file being added
                 notif_msg = settings_dict["PersonalSettings"]["Notifications"]["NewFile"]
-                Notify.Notification.new("fetch-attach", f'{notif_msg}"{filename}"').show()
+                Notify.Notification.new("fetch-attach", f'{notif_msg}\n"{filename}"', PATH+'/graphics/Gmail_Icon.png').show()
                 
             except urllib.error.HTTPError as error:
                 print('An error occurred: %s' % error,end=' ')
                 print('(Probably means that the url no longer works)')
                 error_label_id = settings_dict["PersonalSettings"]["Labels"]["LabelErrorDownload"]["id"]
-                SetLabel(gmail,'me',msg_id,error_label_id)
+                if set_labels:
+                    SetLabel(gmail,'me',msg_id,error_label_id)
+
 
 if __name__ == '__main__':
     
     with open(PATH + "/fetchcron.log","a") as fh:
         fh.write(str(datetime.datetime.now())+': fetchattach started, as cron job\n')
     
-    settings_dict = loadSettingsFromJSON(PATH + '/settings.json')
+    gmail = GetGmailServiceObject()
     
     Notify.init("fetchattach")
     
-    DownloadMails(settings_dict)
+    for settings_file in os.listdir(PATH + '/settings'):
+        
+        settings_dict = loadSettingsFromJSON(PATH + '/settings/' + settings_file)
+        
+        DownloadMails(gmail, settings_dict, download_all=True, set_labels=False)
+        
+        # send a notification that email was checked periodically (eg. every 30min)
+        settings_dict["tick"] += 1
+        if settings_dict["tick"] >= settings_dict["notifyEvery"]:
+            notif_msg = settings_dict["PersonalSettings"]["Notifications"]["Checked"]
+            Notify.Notification.new("fetch-attach", notif_msg, PATH+'/graphics/Gmail_Icon.png').show() # title, text, file_path_to_icon
+            settings_dict["tick"] = 0
+        
+        saveSettingsToJSON(settings_dict,PATH + '/settings/' + settings_file)
     
-    #notif_msg = settings_dict["PersonalSettings"]["Notifications"]["Checked"]
-    #Notify.Notification.new("fetch-attach", notif_msg, PATH+'/Gmail_Icon.png').show() # title, text, file_path_to_icon
-
     with open(PATH + "/fetchcron.log","a") as fh:
         fh.write(str(datetime.datetime.now())+': fetch finished, as cron job\n')
